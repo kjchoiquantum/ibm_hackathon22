@@ -1,0 +1,1297 @@
+{
+ "cells": [
+  {
+   "cell_type": "code",
+   "execution_count": 3,
+   "id": "cd759b89",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import numpy as np\n",
+    "from matplotlib import pyplot as plt\n",
+    "# Importing standard Qiskit libraries\n",
+    "from qiskit import QuantumCircuit, assemble, transpile, Aer, IBMQ, ClassicalRegister, execute\n",
+    "from qiskit.tools.jupyter import *\n",
+    "from qiskit.visualization import *\n",
+    "from ibm_quantum_widgets import *\n",
+    "from qiskit.visualization import plot_bloch_multivector, plot_histogram\n",
+    "from qiskit.providers.aer import QasmSimulator, AerSimulator\n",
+    "from qiskit.quantum_info import Operator\n",
+    "import qiskit.quantum_info as qi\n",
+    "from qiskit.utils import QuantumInstance\n",
+    "from qiskit.opflow import PauliExpectation, CircuitStateFn, CircuitSampler, StateFn\n",
+    "from qiskit.circuit.random import random_circuit\n",
+    "import qiskit.test.mock as fbe\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 63,
+   "id": "fe6b2d6a",
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "ibmqfactory.load_account:WARNING:2022-02-10 03:11:13,573: Credentials are already in use. The existing account in the session will be replaced.\n"
+     ]
+    },
+    {
+     "data": {
+      "text/plain": [
+       "<AccountProvider for IBMQ(hub='ibm-q-skku', group='yonsei-uni', project='yu-graduate')>"
+      ]
+     },
+     "execution_count": 63,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "IBMQ.save_account('b003e2581524b0f95c468edd805ee7fabcfa17321904509e491b263dff3da6922c05b0d79d561d2cc11a5e2b086b91f90ebf08feb3a493e12d8046a32964f66b', hub='ibm-q-skku', group='yonsei-uni', project='yu-graduate', overwrite=True)\n",
+    "provider = IBMQ.load_account()\n",
+    "IBMQ.get_provider(hub='ibm-q-skku', group='yonsei-uni', project='yu-graduate')\n",
+    "#backend2 = provider.get_backend('ibmq_guadalupe')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 64,
+   "id": "bcd29191",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "sim = Aer.get_backend('aer_simulator')\n",
+    "device_backend = fbe.FakeMontreal()\n",
+    "device_backend_real = provider.get_backend('ibmq_jakarta')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 8,
+   "id": "37178f4c",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "sim_montreal = AerSimulator.from_backend(device_backend)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 9,
+   "id": "55327560",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "def x_measurement(qc, qubit, cbit):\n",
+    "    qc.h(qubit)\n",
+    "    qc.measure(qubit, cbit)    \n",
+    "    return qc\n",
+    "\n",
+    "def y_measurement(qc, qubit, cbit):\n",
+    "    qc.sdg(qubit)\n",
+    "    qc.h(qubit)\n",
+    "    qc.measure(qubit, cbit)\n",
+    "    return qc\n",
+    "\n",
+    "def z_measurement(qc, qubit, cbit):\n",
+    "    qc.measure(qubit, cbit)\n",
+    "    return qc\n",
+    "\n",
+    "def pauli_measurement(qc, qubit, cbit, axis):\n",
+    "    if axis == 0:\n",
+    "        return x_measurement(qc, qubit, cbit)\n",
+    "    elif axis == 1:\n",
+    "        return y_measurement(qc, qubit, cbit)\n",
+    "    else:\n",
+    "        return z_measurement(qc, qubit, cbit)\n",
+    "    \n",
+    "    \n",
+    "def clifford_measurement(qc, n_qubit):\n",
+    "    rc = qi.random_clifford(n_qubit)\n",
+    "    rc_circuit = rc.to_circuit()\n",
+    "    rc_matrix = rc.to_matrix()\n",
+    "    qc_rc = qc.compose(rc_circuit)\n",
+    "    for n in range(n_qubit):\n",
+    "        qc_rc.measure(n, n)\n",
+    "    #qc_rc.measure(qubit, cbit)\n",
+    "    return qc_rc, rc_matrix\n",
+    "    "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 10,
+   "id": "bfc86935",
+   "metadata": {},
+   "outputs": [],
+   "source": []
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 11,
+   "id": "4e3819ce",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "def calculate_classical_shadow(qc, shadow_size, num_qubits, ensemble, device):\n",
+    "    outcomes = np.zeros((shadow_size, num_qubits))\n",
+    "    clifford_list = []\n",
+    "    pauli_ids = np.random.randint(0, 3, size=(shadow_size, num_qubits))\n",
+    "    #print(unitary_ids)\n",
+    "    for k in range(shadow_size):\n",
+    "        # To construct a random-pauli measurement circuit\n",
+    "        qc_temp = qc.copy()\n",
+    "        if ensemble == 'p':    \n",
+    "            #pauli_circuit = QuantumCircuit(num_qubits, num_qubits)\n",
+    "            for i in range(num_qubits):\n",
+    "                #pauli_measurement(pauli_circuit, i, i, pauli_ids[k, i])\n",
+    "                #qc_pauli = qc.compose(pauli_circuit)\n",
+    "                pauli_measurement(qc_temp, i, i, pauli_ids[k, i])\n",
+    "            qc_temp_tp = transpile(qc_temp, device)\n",
+    "            result = device.run(qc_temp, shots=1).result().get_counts()\n",
+    "            #result = execute(qc_temp, sim, shots=1).result().get_counts()\n",
+    "        elif ensemble == 'c':\n",
+    "\n",
+    "            clifford_circuit, clifford_mat = clifford_measurement(qc_temp, num_qubits)\n",
+    "            clifford_list.append(clifford_mat)\n",
+    "            clifford_circuit_tp = transpile(clifford_circuit, device)\n",
+    "            result = device.run(clifford_circuit_tp, shots=1).result().get_counts()\n",
+    "            #result = execute(clifford_circuit, sim, shots=1).result().get_counts()\n",
+    "        b_set = result.popitem()[0]\n",
+    "            \n",
+    "        # To compose the target circuit and the pauli circuit\n",
+    "        #qc_shadow = qc.compose(pauli_circuit)\n",
+    "        #print(qc_shadow)\n",
+    "        #qc_shadow.draw()\n",
+    "        \n",
+    "        # To measure\n",
+    "        #circ_trans = transpile(qc_shadow, sim)\n",
+    "        b_array = np.array(list(b_set))\n",
+    "        outcomes[k, :] = b_array\n",
+    "    outcomes = outcomes.astype(int)\n",
+    "    #outcomes[outcomes == 1] = -1\n",
+    "    #outcomes[outcomes == 0] = 1    \n",
+    "    if ensemble == 'p':\n",
+    "        #print(outcomes, pauli_ids)\n",
+    "        return (outcomes, pauli_ids)\n",
+    "    elif ensemble == 'c':\n",
+    "        return (outcomes, clifford_list)\n",
+    "\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 137,
+   "id": "f609bd4b",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "\n",
+    "\n",
+    "def snapshot_set(shadow, ensemble_list, ensemble):\n",
+    "    b_array = shadow\n",
+    "    unitary_ensemble = ensemble_list\n",
+    "    num_shadows, num_qubits = b_array.shape\n",
+    "    zero_mat = np.array([[1, 0],[0, 0]])\n",
+    "    one_mat = np.array([[0, 0],[0, 1]])\n",
+    "    measure_list = [zero_mat, one_mat]\n",
+    "    snapshot_set = []\n",
+    "    print(len(unitary_ensemble))\n",
+    "    for ns in range(num_shadows):\n",
+    "        if ensemble == 'p':\n",
+    "            mat = np.array([1])\n",
+    "            b_list, pauli_list = b_array[ns], unitary_ensemble[ns]\n",
+    "            for i in range(num_qubits):\n",
+    "                if pauli_list[i] == 0:\n",
+    "                    mat = np.kron(mat, pauli_inversion[0]) if b_list[i] == 0 else np.kron(mat, pauli_inversion[1])\n",
+    "                elif pauli_list[i] == 1:\n",
+    "                    mat = np.kron(mat, pauli_inversion[2]) if b_list[i] == 0 else np.kron(mat, pauli_inversion[3])\n",
+    "                else:\n",
+    "                    mat = np.kron(mat, pauli_inversion[4]) if b_list[i] == 0 else np.kron(mat, pauli_inversion[5])\n",
+    "        elif ensemble == 'c':\n",
+    "            measure_mat = np.array([1])\n",
+    "            b_list = b_array[ns]\n",
+    "            b_list_int = b_list.astype(int)\n",
+    "            clifford_mat = unitary_ensemble[ns]\n",
+    "            for i in range(len(b_list_int)):\n",
+    "                measure_mat = np.kron(measure_mat, measure_list[b_list_int[i]])\n",
+    "            mat = ((2 ** num_qubits) + 1) * ((clifford_mat.conj().T) @ measure_mat @ clifford_mat) - np.eye(2**num_qubits)\n",
+    "        snapshot_set.append(mat)   \n",
+    "    return snapshot_set, unitary_ensemble\n",
+    "\n",
+    "def split_shadow_into_parts(snapshot_set, k):\n",
+    "    set_size = len(snapshot_set)\n",
+    "    split_size = int(set_size / k)\n",
+    "    split_set = []\n",
+    "    for i in range(k):\n",
+    "        start_id = (i) * split_size\n",
+    "        shadow_temp = snapshot_set[start_id]\n",
+    "        if i == k-1:\n",
+    "            last_size = set_size - (k-1) * split_size\n",
+    "            for j in range(last_size-1):\n",
+    "                shadow_temp += snapshot_set[start_id+j+1]\n",
+    "        else:\n",
+    "            for j in range(split_size-1):            \n",
+    "                shadow_temp += snapshot_set[start_id+j+1]\n",
+    "        shadow_temp /= split_size\n",
+    "        split_set.append(shadow_temp)\n",
+    "    \n",
+    "    return split_set\n",
+    "            \n",
+    "\n",
+    "    "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 13,
+   "id": "b9aa0693",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "def shadow_state_reconstruction(snapshot_set):\n",
+    "    num_snapshots = len(snapshot_set)\n",
+    "    shadow_temp = snapshot_set[0]\n",
+    "    for s in range(num_snapshots-1):\n",
+    "        shadow_temp += snapshot_set[s+1]\n",
+    "    return shadow_temp/num_snapshots\n",
+    "\n",
+    "    "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 14,
+   "id": "71dd415e",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "from qiskit.opflow import I, H, S, Z, Y, X\n",
+    "\n",
+    "\n",
+    "iden_mat = I.to_matrix()\n",
+    "sdg_mat = S.to_matrix().conj().T\n",
+    "x_rot = H.to_matrix()\n",
+    "y_rot = x_rot @ sdg_mat\n",
+    "zero_mat = np.array([[1, 0], [0, 0]])\n",
+    "one_mat = np.array([[0, 0], [0, 1]])\n",
+    "\n",
+    "rot_list = [x_rot, y_rot, iden_mat]\n",
+    "com_list = [zero_mat, one_mat]\n",
+    "pauli_inversion = []\n",
+    "\n",
+    "for mat in rot_list:\n",
+    "    for com in com_list:\n",
+    "        temp = 3 * mat.conj().T @ com @ mat - iden_mat\n",
+    "        pauli_inversion.append(temp)\n",
+    "        \n",
+    "\n",
+    "\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 244,
+   "id": "0de23c28-1cab-4782-a3ac-106565a49214",
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "image/png": "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\n",
+      "text/plain": [
+       "<Figure size 387.597x325.08 with 1 Axes>"
+      ]
+     },
+     "execution_count": 244,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "rot_ghz4_circuit = QuantumCircuit(4, 4)\n",
+    "rot_ghz4_circuit.h(0)\n",
+    "rot_ghz4_circuit.cnot(0,1)\n",
+    "rot_ghz4_circuit.cnot(1,2)\n",
+    "rot_ghz4_circuit.cnot(2,3)\n",
+    "rot_ghz4_circuit.x(0)\n",
+    "rot_ghz4_circuit.h(1)\n",
+    "rot_ghz4_circuit.s(2)\n",
+    "rot_ghz4_circuit.y(3)\n",
+    "\n",
+    "rot_ghz4_circuit.draw(output='mpl')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 26,
+   "id": "ac14cf48-1003-4167-a41c-804ce740ed52",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "rot_ghz4_shadow, rot_ghz4_ensemble = calculate_classical_shadow(rot_ghz4_circuit, 2000, 4, 'c', sim_montreal)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 47,
+   "id": "027a64ae-fe38-4c8e-b045-f5d87dee5836",
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "image/png": "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\n",
+      "text/plain": [
+       "<Figure size 327.397x264.88 with 1 Axes>"
+      ]
+     },
+     "execution_count": 47,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "rot_ghz_circuit = QuantumCircuit(3,3)\n",
+    "rot_ghz_circuit.h(0)\n",
+    "rot_ghz_circuit.cnot(0, 1)\n",
+    "rot_ghz_circuit.cnot(1, 2)\n",
+    "rot_ghz_circuit.t(0)\n",
+    "rot_ghz_circuit.sx(1)\n",
+    "rot_ghz_circuit.s(2)\n",
+    "rot_ghz_circuit.draw()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 24,
+   "id": "d910589c-460e-45ac-a9c7-f5e036f9e976",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "\n",
+    "\n",
+    "rot_shadow, rot_ensemble = calculate_classical_shadow(rot_ghz_circuit, 1000, 3, 'c', sim_montreal)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 245,
+   "id": "295d747e-9a63-4252-b0a9-a738a75e3d73",
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "image/png": "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\n",
+      "text/plain": [
+       "<Figure size 267.197x264.88 with 1 Axes>"
+      ]
+     },
+     "execution_count": 245,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "ghz_circuit = QuantumCircuit(3,3)\n",
+    "ghz_circuit.h(0)\n",
+    "ghz_circuit.cnot(0, 1)\n",
+    "ghz_circuit.cnot(1, 2)\n",
+    "\n",
+    "ghz_circuit.draw()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 17,
+   "id": "aeaed686",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "ghz_circuit = QuantumCircuit(3,3)\n",
+    "ghz_circuit.h(0)\n",
+    "ghz_circuit.cnot(0, 1)\n",
+    "ghz_circuit.cnot(1, 2)\n",
+    "\n",
+    "shadow, ensemble = calculate_classical_shadow(ghz_circuit, 1000, 3, 'c', sim_montreal)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 147,
+   "id": "31af9aea-033a-4c6c-b857-6d45ad891b46",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "shadow_ghz = np.loadtxt('shadow_ghz_1000_fmontreal.txt')\n",
+    "ensemble_ghz = np.load('shadow_ghz_1000_ensemble_fmontreal.npy')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 148,
+   "id": "a92370b9-7459-4215-a600-c1a92b1b75af",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "rot_shadow_ghz = np.loadtxt('shadow_rot_ghz_1000_fmontreal.txt')\n",
+    "ensemble_rot_ghz = np.load('shadow_rot_ghz_1000_ensemble_fmontreal.npy')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 149,
+   "id": "4b73ed5e-ad62-4bc1-b49b-a63600de0507",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "rot_shadow_ghz4 = np.loadtxt('shadow_rot_ghz4_2000_fmontreal.txt')\n",
+    "ensemble_rot_ghz4 = np.load('shadow_rot_ghz4_2000_ensemble_fmontreal.npy')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 150,
+   "id": "eeed7c25-2044-4e20-a8f8-3650f92fe870",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "shadow_ghz_jak = np.load('shadow_ghz_5000_jakarta.npy')\n",
+    "ensemble_ghz_jak = np.load('ensemble_ghz_5000_jakarta.npy')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 158,
+   "id": "0961d8fa-7c99-4d1b-b080-1d32ddc7c35e",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "shadow_ghz4_jak = np.load('shadow_ghz4_5000_jakarta.npy')\n",
+    "ensemble_ghz4_jak = np.load('ensemble_ghz4_5000_jakarta.npy')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 233,
+   "id": "71865605-d20a-4b14-b19b-6716da556d3d",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "shadow_rot_ghz_jak_1000 = np.load('shadow_rot_ghz_1000_jakarta.npy')\n",
+    "ensemble_rot_ghz_jak_1000 = np.load('ensemble_rot_ghz_1000_jakarta.npy')\n",
+    "shadow_rot_ghz_jak_5000 = np.load('shadow_rot_ghz_5000_jakarta.npy')\n",
+    "ensemble_rot_ghz_jak_5000 = np.load('ensemble_rot_ghz_5000_jakarta.npy')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 234,
+   "id": "adf0dbf4-4cad-40b0-9b5e-fb8c8fdd43d3",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "shadow_ghz_jak_1000 = np.load('shadow_ghz_1000_jakarta.npy')\n",
+    "ensemble_ghz_jak_1000 = np.load('ensemble_ghz_1000_jakarta.npy')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 151,
+   "id": "1cccac83",
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "1000\n"
+     ]
+    }
+   ],
+   "source": [
+    "ghz_snapshot, ensemble2 = snapshot_set(shadow_ghz, ensemble_ghz, 'c')\n",
+    "ghz_split_shadow_trace_distance = split_shadow_into_parts(ghz_snapshot, 1)\n",
+    "ghz_split_shadow_witness = split_shadow_into_parts(ghz_snapshot, 7)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 152,
+   "id": "7d95a0ef-4e8f-486e-8ad1-3a3a3b0c7ba2",
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "1000\n"
+     ]
+    }
+   ],
+   "source": [
+    "rot_ghz_snapshot, rot_ensemble2 = snapshot_set(rot_shadow_ghz, ensemble_rot_ghz, 'c')\n",
+    "rot_ghz_split_shadow_trace_distance = split_shadow_into_parts(rot_ghz_snapshot, 1)\n",
+    "rot_ghz_split_shadow_witness = split_shadow_into_parts(rot_ghz_snapshot, 7)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 153,
+   "id": "750ffdbb-23d4-4d64-9b0a-666e7b46de4b",
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "2000\n"
+     ]
+    }
+   ],
+   "source": [
+    "rot_ghz4_snapshot, rot_ghz4_ensemble2 = snapshot_set(rot_shadow_ghz4, ensemble_rot_ghz4, 'c')\n",
+    "rot_ghz4_split_shadow_trace_distance = split_shadow_into_parts(rot_ghz4_snapshot, 1)\n",
+    "rot_ghz4_split_shadow_witness = split_shadow_into_parts(rot_ghz4_snapshot, 10)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 154,
+   "id": "6a2de944-2ebe-45a4-bf0f-e5e7d76d1b81",
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "5000\n"
+     ]
+    }
+   ],
+   "source": [
+    "ghz_snapshot_jak, ensemble2_jak = snapshot_set(shadow_ghz_jak, ensemble_ghz_jak, 'c')\n",
+    "ghz_jak_split_shadow_trace_distance = split_shadow_into_parts(ghz_snapshot_jak, 1)\n",
+    "ghz_jak_split_shadow_witness = split_shadow_into_parts(ghz_snapshot_jak, 7)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 235,
+   "id": "39569407-c327-4e87-9eb9-1da363bf2522",
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "1000\n",
+      "5000\n",
+      "1000\n"
+     ]
+    }
+   ],
+   "source": [
+    "rot_ghz_snapshot_jak_1000, rot_ghz_ensemble_jak_1000 = snapshot_set(shadow_rot_ghz_jak_1000, ensemble_rot_ghz_jak_1000, 'c')\n",
+    "rot_ghz_jak_1000_split_shadow_trace_distance = split_shadow_into_parts(rot_ghz_snapshot_jak_1000, 1)\n",
+    "rot_ghz_jak_1000_split_shadow_witness = split_shadow_into_parts(rot_ghz_snapshot_jak_1000, 7)\n",
+    "\n",
+    "rot_ghz_snapshot_jak_5000, rot_ghz_ensemble_jak_5000 = snapshot_set(shadow_rot_ghz_jak_5000, ensemble_rot_ghz_jak_5000, 'c')\n",
+    "rot_ghz_jak_5000_split_shadow_trace_distance = split_shadow_into_parts(rot_ghz_snapshot_jak_5000, 1)\n",
+    "rot_ghz_jak_5000_split_shadow_witness = split_shadow_into_parts(rot_ghz_snapshot_jak_5000, 7)\n",
+    "\n",
+    "ghz_snapshot_jak_1000, ensemble2_jak_1000 = snapshot_set(shadow_ghz_jak_1000, ensemble_ghz_jak_1000, 'c')\n",
+    "ghz_jak_1000_split_shadow_trace_distance = split_shadow_into_parts(ghz_snapshot_jak_1000, 1)\n",
+    "ghz_jak_1000_split_shadow_witness = split_shadow_into_parts(ghz_snapshot_jak_1000, 7)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 159,
+   "id": "2c5e4cda-5aed-4b03-8245-9e432f5dc2af",
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "5000\n"
+     ]
+    }
+   ],
+   "source": [
+    "ghz4_snapshot_jak, ghz4_ensemble2_jak = snapshot_set(shadow_ghz4_jak, ensemble_ghz4_jak, 'c')\n",
+    "ghz4_jak_split_shadow_trace_distance = split_shadow_into_parts(ghz4_snapshot_jak, 1)\n",
+    "ghz4_jak_split_shadow_witness = split_shadow_into_parts(ghz4_snapshot_jak, 10)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 162,
+   "id": "836252ae-564a-44fe-b8e2-ae9faf50fabe",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "def trace_distance(target, output):\n",
+    "    distance = np.trace(np.abs(target-output))/2\n",
+    "    return distance"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 236,
+   "id": "74955739-2c71-4781-8abd-dafae6865c59",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "ghz_arr = np.array(ghz_op)\n",
+    "rot_ghz_arr = np.array(rot_ghz_op)\n",
+    "rot_ghz4_arr = np.array(rot_ghz4_op)\n",
+    "\n",
+    "\n",
+    "ghz_td = trace_distance(ghz_arr, ghz_split_shadow_trace_distance[0])\n",
+    "rot_ghz_td = trace_distance(rot_ghz_arr, rot_ghz_split_shadow_trace_distance[0])\n",
+    "rot_ghz4_td = trace_distance(rot_ghz4_arr, rot_ghz4_split_shadow_trace_distance[0])\n",
+    "ghz_td_jak = trace_distance(ghz_arr, ghz_jak_split_shadow_trace_distance[0])\n",
+    "ghz4_td_jak = trace_distance(rot_ghz4_arr, ghz4_jak_split_shadow_trace_distance[0])\n",
+    "ghz_td_jak_1000 = trace_distance(ghz_arr, ghz_jak_1000_split_shadow_trace_distance[0])\n",
+    "rot_ghz_td_1000 = trace_distance(rot_ghz_arr, rot_ghz_jak_1000_split_shadow_trace_distance[0])\n",
+    "rot_ghz_td_5000 = trace_distance(rot_ghz_arr, rot_ghz_jak_5000_split_shadow_trace_distance[0])\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 243,
+   "id": "6314f01e-578c-4518-8ed2-ed9ce8c2047f",
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "(0.2635582983193262, 0.38418661971830803, 0.5305592750000007)"
+      ]
+     },
+     "execution_count": 243,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "ghz_td_jak, ghz_td_jak_1000, ghz4_td_jak"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 239,
+   "id": "49d7fcdd-b696-4302-b6e3-49e829f27c3d",
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "(0.1962142857142854, 0.2459181338028158)"
+      ]
+     },
+     "execution_count": 239,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "rot_ghz_td_5000, rot_ghz_td_1000"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 55,
+   "id": "f33d5ded-9322-42ba-82a2-0b8c93fa8e68",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "qc_ghz = QuantumCircuit(3)\n",
+    "qc_ghz.h(0)\n",
+    "qc_ghz.cnot(0,1)\n",
+    "qc_ghz.cnot(1,2)\n",
+    "\n",
+    "\n",
+    "\n",
+    "ghz_dens = qi.DensityMatrix(qc_ghz)\n",
+    "ghz_op = ghz_dens.to_operator()\n",
+    "\n",
+    "rot_ghz_dens = qi.DensityMatrix(rot_ghz_circuit)\n",
+    "rot_ghz_op = rot_ghz_dens.to_operator()\n",
+    "\n",
+    "rot_ghz4_dens = qi.DensityMatrix(rot_ghz4_circuit)\n",
+    "rot_ghz4_op = rot_ghz4_dens.to_operator()\n",
+    "\n",
+    "def random_witness(operator):\n",
+    "    nq = operator.num_qubits\n",
+    "    dim = 2 ** nq\n",
+    "    ru = qi.random_unitary(dim)\n",
+    "    temp = ru.dot(operator)\n",
+    "    temp2 = temp.dot(ru.conjugate())\n",
+    "    rw = np.array(temp2)\n",
+    "    return rw\n",
+    "\n",
+    "def witness_check(random_witness, state):\n",
+    "    fidelity = random_witness.dot(state)\n",
+    "    fid_array = np.array(fidelity)\n",
+    "    return np.trace(fid_array)\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 116,
+   "id": "ee49152d-2092-45fb-8104-91ff16762a58",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "m_ghz = 1000\n",
+    "m_rot_ghz = 1000\n",
+    "m_rot_ghz4 = 2000\n",
+    "\n",
+    "rw_list_ghz = []\n",
+    "rw_list_rot_ghz = []\n",
+    "rw_list_rot_ghz4 = []\n",
+    "\n",
+    "for i in range(m_ghz):\n",
+    "    rw = random_witness(ghz_op)\n",
+    "    rw_list_ghz.append(rw)\n",
+    "\n",
+    "for j in range(m_rot_ghz):\n",
+    "    rw_rot = random_witness(rot_ghz_op)\n",
+    "    rw_list_rot_ghz.append(rw_rot)\n",
+    "\n",
+    "for k in range(m_rot_ghz4):\n",
+    "    rw_rghz4 = random_witness(rot_ghz4_op)\n",
+    "    rw_list_rot_ghz4.append(rw_rghz4)\n",
+    "          "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 178,
+   "id": "176d8e6f-df4a-4000-b9ec-266c5062a049",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "m_rot_ghz = 1000\n",
+    "for j in range(m_rot_ghz):\n",
+    "    rw_rot = random_witness(rot_ghz_op)\n",
+    "    rw_list_rot_ghz.append(rw_rot)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 173,
+   "id": "81572b61-2584-41f1-9bc0-a08a6705b5a4",
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "(array([583]),)"
+      ]
+     },
+     "execution_count": 173,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "ghz_fidelity_list_jak = []\n",
+    "\n",
+    "for w in rw_list_ghz:\n",
+    "    for ghz_shadow in ghz_jak_split_shadow_witness:\n",
+    "        fid = witness_check(w, ghz_shadow)\n",
+    "    med_fid = np.median(fid)    \n",
+    "    ghz_fidelity_list_jak.append(med_fid)\n",
+    "ghz_fidelity_jak_array = np.array(ghz_fidelity_list_jak)\n",
+    "np.where(ghz_fidelity_jak_array>0.5)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 240,
+   "id": "094d99d0-147d-41e4-af2f-28e04e2f864b",
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "(array([], dtype=int64),)"
+      ]
+     },
+     "execution_count": 240,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "ghz_fidelity_list_jak_1000 = []\n",
+    "\n",
+    "for w in rw_list_ghz:\n",
+    "    for ghz_shadow in ghz_jak_1000_split_shadow_witness:\n",
+    "        fid = witness_check(w, ghz_shadow)\n",
+    "    med_fid = np.median(fid)    \n",
+    "    ghz_fidelity_list_jak_1000.append(med_fid)\n",
+    "ghz_fidelity_jak_1000_array = np.array(ghz_fidelity_list_jak_1000)\n",
+    "np.where(ghz_fidelity_jak_1000_array>0.5)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 171,
+   "id": "1c419d7e-357f-48a1-acfc-26244f81565c",
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "(array([ 51, 188, 244, 283, 549, 583, 937]),)"
+      ]
+     },
+     "execution_count": 171,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "ideal_ghz_fidelity_list = []\n",
+    "\n",
+    "for w in rw_list_ghz:\n",
+    "    fid = witness_check(w, ghz_arr)\n",
+    "    ideal_ghz_fidelity_list.append(fid)\n",
+    "ideal_ghz_fidelity_array = np.array(ideal_ghz_fidelity_list)\n",
+    "np.where(ideal_ghz_fidelity_array>0.5)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 172,
+   "id": "35859d2e-7de1-49b5-997e-bf48cefa5ee3",
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "(array([747]),)"
+      ]
+     },
+     "execution_count": 172,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "ghz_fidelity_list = []\n",
+    "\n",
+    "for w in rw_list_ghz:\n",
+    "    for ghz_shadow in ghz_split_shadow_witness:\n",
+    "        fid = witness_check(w, ghz_shadow)\n",
+    "    med_fid = np.median(fid)    \n",
+    "    ghz_fidelity_list.append(med_fid)\n",
+    "ghz_fidelity_array = np.array(ghz_fidelity_list)\n",
+    "np.where(ghz_fidelity_array>0.5)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 230,
+   "id": "4c077d3a-d25b-4227-8f09-84d7136e4bb4",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "rw_list_rot_ghz = []\n",
+    "m_rot_ghz = 10000\n",
+    "for j in range(m_rot_ghz):\n",
+    "    rw_rot = random_witness(rot_ghz_op)\n",
+    "    rw_list_rot_ghz.append(rw_rot)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 231,
+   "id": "56a4da37-de48-46f2-9328-66016a879eb3",
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "(array([4830]),)"
+      ]
+     },
+     "execution_count": 231,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "ideal_rot_ghz_fidelity_list = []\n",
+    "for w in rw_list_rot_ghz:\n",
+    "    fid = witness_check(w, rot_ghz_arr)\n",
+    "    ideal_rot_ghz_fidelity_list.append(fid)\n",
+    "ideal_rot_ghz_fidelity_array = np.array(ideal_rot_ghz_fidelity_list)\n",
+    "np.where(ideal_rot_ghz_fidelity_array>0.5)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 241,
+   "id": "d4a9957b-f070-4179-bd41-fb47b43c2b00",
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "array([], dtype=complex128)"
+      ]
+     },
+     "execution_count": 241,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "rot_ghz_jak_1000_fidelity_list = []\n",
+    "\n",
+    "for w in rw_list_rot_ghz:\n",
+    "    for ghz_shadow in rot_ghz_jak_1000_split_shadow_witness:\n",
+    "        fid = witness_check(w, ghz_shadow)\n",
+    "    med_fid = np.median(fid)    \n",
+    "    rot_ghz_jak_1000_fidelity_list.append(med_fid)\n",
+    "rot_ghz_jak_1000_fidelity_array = np.array(rot_ghz_jak_1000_fidelity_list)\n",
+    "rot_ghz_jak_1000_fidelity_array[rot_ghz_jak_1000_fidelity_array>0.5]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 242,
+   "id": "1e1bca48-2ae8-4f58-9bd6-109594950e60",
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "array([], dtype=complex128)"
+      ]
+     },
+     "execution_count": 242,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "rot_ghz_jak_5000_fidelity_list = []\n",
+    "\n",
+    "for w in rw_list_rot_ghz:\n",
+    "    for ghz_shadow in rot_ghz_jak_5000_split_shadow_witness:\n",
+    "        fid = witness_check(w, ghz_shadow)\n",
+    "    med_fid = np.median(fid)    \n",
+    "    rot_ghz_jak_5000_fidelity_list.append(med_fid)\n",
+    "rot_ghz_jak_5000_fidelity_array = np.array(rot_ghz_jak_5000_fidelity_list)\n",
+    "rot_ghz_jak_5000_fidelity_array[rot_ghz_jak_5000_fidelity_array>0.5]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 174,
+   "id": "d1d2f024-4e80-4d63-adfe-951816048d3b",
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "array([], dtype=complex128)"
+      ]
+     },
+     "execution_count": 174,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "rot_ghz4_fidelity_list = []\n",
+    "\n",
+    "for w in rw_list_rot_ghz4:\n",
+    "    for ghz_shadow in rot_ghz4_split_shadow_witness:\n",
+    "        fid = witness_check(w, ghz_shadow)\n",
+    "    med_fid = np.median(fid)    \n",
+    "    rot_ghz4_fidelity_list.append(med_fid)\n",
+    "rot_ghz4_fidelity_array = np.array(rot_ghz4_fidelity_list)\n",
+    "rot_ghz4_fidelity_array[rot_ghz4_fidelity_array>0.5]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 47,
+   "id": "522e8f70",
+   "metadata": {},
+   "outputs": [],
+   "source": []
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "0aea793b",
+   "metadata": {},
+   "outputs": [],
+   "source": []
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Qiskit v0.34.1 (ipykernel)",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.8.12"
+  },
+  "widgets": {
+   "application/vnd.jupyter.widget-state+json": {
+    "state": {
+     "01ecc126cc9e41529d04ecd324038ad1": {
+      "model_module": "@jupyter-widgets/controls",
+      "model_module_version": "1.5.0",
+      "model_name": "DescriptionStyleModel",
+      "state": {
+       "description_width": ""
+      }
+     },
+     "05fc855a4b7b4286be51019da2c9d3f6": {
+      "model_module": "@jupyter-widgets/controls",
+      "model_module_version": "1.5.0",
+      "model_name": "DescriptionStyleModel",
+      "state": {
+       "description_width": ""
+      }
+     },
+     "2465a7cac97741689d3afa9f78b9a6ac": {
+      "model_module": "@jupyter-widgets/base",
+      "model_module_version": "1.2.0",
+      "model_name": "LayoutModel",
+      "state": {
+       "width": "95px"
+      }
+     },
+     "296da498fb8548cf878047fda909504e": {
+      "model_module": "@jupyter-widgets/controls",
+      "model_module_version": "1.5.0",
+      "model_name": "ButtonModel",
+      "state": {
+       "button_style": "primary",
+       "description": "Clear",
+       "layout": "IPY_MODEL_da14a13ed0484ca6a50ae31634fc2df4",
+       "style": "IPY_MODEL_6f11913713a144cbabcfa52b4f7280d0"
+      }
+     },
+     "2e83122b2e8d4a83bccff878df778a92": {
+      "model_module": "@jupyter-widgets/controls",
+      "model_module_version": "1.5.0",
+      "model_name": "GridBoxModel",
+      "state": {
+       "children": [
+        "IPY_MODEL_296da498fb8548cf878047fda909504e"
+       ],
+       "layout": "IPY_MODEL_f779233e9dae43e0b302d256dd2a07ef"
+      }
+     },
+     "368c5fe9e5af40c0b8c134ddfc40d0fd": {
+      "model_module": "@jupyter-widgets/controls",
+      "model_module_version": "1.5.0",
+      "model_name": "HTMLModel",
+      "state": {
+       "layout": "IPY_MODEL_bd81ac0b7ff64be48e8884e549fc6d9f",
+       "style": "IPY_MODEL_3ec3f21f850242beb225b43b7ba3897d",
+       "value": "<h5>Message</h5>"
+      }
+     },
+     "36b5c8a4f7094a41b6149b2918244d98": {
+      "model_module": "@jupyter-widgets/controls",
+      "model_module_version": "1.5.0",
+      "model_name": "HTMLModel",
+      "state": {
+       "layout": "IPY_MODEL_43364a4cc37145af8ee2454a683a87ac",
+       "style": "IPY_MODEL_af773ad334d44825a26d5a062505bd80",
+       "value": "<h5>Queue</h5>"
+      }
+     },
+     "3ec3f21f850242beb225b43b7ba3897d": {
+      "model_module": "@jupyter-widgets/controls",
+      "model_module_version": "1.5.0",
+      "model_name": "DescriptionStyleModel",
+      "state": {
+       "description_width": ""
+      }
+     },
+     "43364a4cc37145af8ee2454a683a87ac": {
+      "model_module": "@jupyter-widgets/base",
+      "model_module_version": "1.2.0",
+      "model_name": "LayoutModel",
+      "state": {
+       "width": "70px"
+      }
+     },
+     "6e3ba75317864c299e1872c8e5d22699": {
+      "model_module": "@jupyter-widgets/controls",
+      "model_module_version": "1.5.0",
+      "model_name": "HTMLModel",
+      "state": {
+       "layout": "IPY_MODEL_2465a7cac97741689d3afa9f78b9a6ac",
+       "style": "IPY_MODEL_01ecc126cc9e41529d04ecd324038ad1",
+       "value": "<h5>Status</h5>"
+      }
+     },
+     "6f11913713a144cbabcfa52b4f7280d0": {
+      "model_module": "@jupyter-widgets/controls",
+      "model_module_version": "1.5.0",
+      "model_name": "ButtonStyleModel",
+      "state": {}
+     },
+     "827eea703515428ab904bcd29663aa1c": {
+      "model_module": "@jupyter-widgets/base",
+      "model_module_version": "1.2.0",
+      "model_name": "LayoutModel",
+      "state": {
+       "width": "145px"
+      }
+     },
+     "8c602c2f74384f14b977e3224211be81": {
+      "model_module": "@jupyter-widgets/base",
+      "model_module_version": "1.2.0",
+      "model_name": "LayoutModel",
+      "state": {
+       "width": "190px"
+      }
+     },
+     "90d5c546aaa34982bb0851e6ad81577b": {
+      "model_module": "@jupyter-widgets/controls",
+      "model_module_version": "1.5.0",
+      "model_name": "DescriptionStyleModel",
+      "state": {
+       "description_width": ""
+      }
+     },
+     "9738c4e4d5a54b61bb32b2103251e981": {
+      "model_module": "@jupyter-widgets/base",
+      "model_module_version": "1.2.0",
+      "model_name": "LayoutModel",
+      "state": {
+       "margin": "0px 0px 0px 37px",
+       "width": "600px"
+      }
+     },
+     "9f95cc98ee904e8aa482d5248a1f9a32": {
+      "model_module": "@jupyter-widgets/controls",
+      "model_module_version": "1.5.0",
+      "model_name": "HTMLModel",
+      "state": {
+       "layout": "IPY_MODEL_8c602c2f74384f14b977e3224211be81",
+       "style": "IPY_MODEL_90d5c546aaa34982bb0851e6ad81577b",
+       "value": "<h5>Job ID</h5>"
+      }
+     },
+     "af773ad334d44825a26d5a062505bd80": {
+      "model_module": "@jupyter-widgets/controls",
+      "model_module_version": "1.5.0",
+      "model_name": "DescriptionStyleModel",
+      "state": {
+       "description_width": ""
+      }
+     },
+     "bc37f45c224b48e793e35e64e182e6de": {
+      "model_module": "@jupyter-widgets/controls",
+      "model_module_version": "1.5.0",
+      "model_name": "HBoxModel",
+      "state": {
+       "children": [
+        "IPY_MODEL_9f95cc98ee904e8aa482d5248a1f9a32",
+        "IPY_MODEL_dffdd4ee45344ac099dad02cd71b25a9",
+        "IPY_MODEL_6e3ba75317864c299e1872c8e5d22699",
+        "IPY_MODEL_36b5c8a4f7094a41b6149b2918244d98",
+        "IPY_MODEL_368c5fe9e5af40c0b8c134ddfc40d0fd"
+       ],
+       "layout": "IPY_MODEL_9738c4e4d5a54b61bb32b2103251e981"
+      }
+     },
+     "bd81ac0b7ff64be48e8884e549fc6d9f": {
+      "model_module": "@jupyter-widgets/base",
+      "model_module_version": "1.2.0",
+      "model_name": "LayoutModel",
+      "state": {}
+     },
+     "da14a13ed0484ca6a50ae31634fc2df4": {
+      "model_module": "@jupyter-widgets/base",
+      "model_module_version": "1.2.0",
+      "model_name": "LayoutModel",
+      "state": {
+       "grid_area": "right",
+       "padding": "0px 0px 0px 0px",
+       "width": "70px"
+      }
+     },
+     "dffdd4ee45344ac099dad02cd71b25a9": {
+      "model_module": "@jupyter-widgets/controls",
+      "model_module_version": "1.5.0",
+      "model_name": "HTMLModel",
+      "state": {
+       "layout": "IPY_MODEL_827eea703515428ab904bcd29663aa1c",
+       "style": "IPY_MODEL_05fc855a4b7b4286be51019da2c9d3f6",
+       "value": "<h5>Backend</h5>"
+      }
+     },
+     "efc6ab6acd824201bb98b82fd5de855c": {
+      "model_module": "@jupyter-widgets/controls",
+      "model_module_version": "1.5.0",
+      "model_name": "HTMLModel",
+      "state": {
+       "layout": "IPY_MODEL_f9f43c8ed111427e9f9a16e043f12636",
+       "style": "IPY_MODEL_ff0be01dfd614fcebc163353e1dd4a17",
+       "value": "<p style='font-family: IBM Plex Sans, Arial, Helvetica, sans-serif; font-size: 20px; font-weight: medium;'>Circuit Properties</p>"
+      }
+     },
+     "f779233e9dae43e0b302d256dd2a07ef": {
+      "model_module": "@jupyter-widgets/base",
+      "model_module_version": "1.2.0",
+      "model_name": "LayoutModel",
+      "state": {
+       "grid_template_areas": "\n                                       \". . . . right \"\n                                        ",
+       "grid_template_columns": "20% 20% 20% 20% 20%",
+       "width": "100%"
+      }
+     },
+     "f9f43c8ed111427e9f9a16e043f12636": {
+      "model_module": "@jupyter-widgets/base",
+      "model_module_version": "1.2.0",
+      "model_name": "LayoutModel",
+      "state": {
+       "margin": "0px 0px 10px 0px"
+      }
+     },
+     "ff0be01dfd614fcebc163353e1dd4a17": {
+      "model_module": "@jupyter-widgets/controls",
+      "model_module_version": "1.5.0",
+      "model_name": "DescriptionStyleModel",
+      "state": {
+       "description_width": ""
+      }
+     }
+    },
+    "version_major": 2,
+    "version_minor": 0
+   }
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 5
+}
